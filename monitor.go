@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -42,38 +43,55 @@ func resolverFor(server string) *net.Resolver {
 }
 
 // monitorZone resolves the apex across resolvers (measuring latency) and dials the
-// resolved targets on :443 to gauge reachability.
+// resolved targets on :443 to gauge reachability. Lookups and dials run concurrently.
 func monitorZone(ctx context.Context, zone string, resolvers []string, dialTimeout time.Duration) snapshot {
 	var s snapshot
 	var ips []string
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	for _, server := range resolvers {
-		r := resolverFor(server)
-		start := time.Now()
-		lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		addrs, err := r.LookupHost(lookupCtx, zone)
-		cancel()
-		s.checks++
-		if err != nil || len(addrs) == 0 {
-			continue
-		}
-		s.success++
-		s.latencies = append(s.latencies, float64(time.Since(start).Microseconds())/1000.0)
-		if len(ips) == 0 {
-			ips = addrs
-		}
+		wg.Add(1)
+		go func(server string) {
+			defer wg.Done()
+			r := resolverFor(server)
+			start := time.Now()
+			lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			addrs, err := r.LookupHost(lookupCtx, zone)
+			cancel()
+			mu.Lock()
+			defer mu.Unlock()
+			s.checks++
+			if err != nil || len(addrs) == 0 {
+				return
+			}
+			s.success++
+			s.latencies = append(s.latencies, float64(time.Since(start).Microseconds())/1000.0)
+			if len(ips) == 0 {
+				ips = addrs
+			}
+		}(server)
 	}
+	wg.Wait()
 
-	// Target reachability: dial each resolved IP on 443.
+	// Target reachability: dial each resolved IP on 443 concurrently.
+	var dwg sync.WaitGroup
 	for _, ip := range ips {
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip, "443"), dialTimeout)
-		if err != nil {
-			s.targetsDown++
-			continue
-		}
-		_ = conn.Close()
-		s.targetsUp++
+		dwg.Add(1)
+		go func(ip string) {
+			defer dwg.Done()
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip, "443"), dialTimeout)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				s.targetsDown++
+				return
+			}
+			_ = conn.Close()
+			s.targetsUp++
+		}(ip)
 	}
+	dwg.Wait()
 	return s
 }
 
