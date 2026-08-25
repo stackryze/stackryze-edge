@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -101,14 +102,24 @@ func runCycle(ctx context.Context, client *stackryzeClient, cfg config) {
 	}
 
 	start := time.Now()
+	// Monitor zones concurrently with bounded parallelism.
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
 	for _, zone := range zones {
-		snap := monitorZone(ctx, zone, cfg.resolvers, cfg.dialTimeout)
-		payload := snap.toPayload(zone, cfg.region, cfg.agentID, start, time.Now())
-		if err := client.pushMetrics(ctx, payload); err != nil {
-			log.Printf("push failed for %s: %v", zone, err)
-			continue
-		}
-		log.Printf("%s: checks=%d success=%.0f%% p50=%.1fms p95=%.1fms up=%d down=%d",
-			zone, payload.Checks, payload.SuccessRate, payload.LatencyP50, payload.LatencyP95, payload.TargetsUp, payload.TargetsDown)
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(zone string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			snap := monitorZone(ctx, zone, cfg.resolvers, cfg.dialTimeout)
+			payload := snap.toPayload(zone, cfg.region, cfg.agentID, start, time.Now())
+			if err := client.pushMetrics(ctx, payload); err != nil {
+				log.Printf("push failed for %s: %v", zone, err)
+				return
+			}
+			log.Printf("%s: checks=%d success=%.0f%% p50=%.1fms p95=%.1fms up=%d down=%d",
+				zone, payload.Checks, payload.SuccessRate, payload.LatencyP50, payload.LatencyP95, payload.TargetsUp, payload.TargetsDown)
+		}(zone)
 	}
+	wg.Wait()
 }
