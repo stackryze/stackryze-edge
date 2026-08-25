@@ -12,7 +12,7 @@ your region (VM / pod)
    stackryze-edge  ──resolve + dial──►  your zones' records
         │  aggregates locally (latency p50/p95, success %, targets up/down)
         ▼  Bearer token
-   api.stackryze.com/api/edge/metrics
+   api-dns.stackryze.com/api/edge/metrics
         │
         ▼
    Stackryze dashboard → Edge monitoring
@@ -26,7 +26,7 @@ Runs entirely on your compute, so it never touches Stackryze's serving path.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `STACKRYZE_API_TOKEN` | yes | — | Token with **write** scope (Settings → API tokens) |
-| `STACKRYZE_API_URL` | no | `https://api.stackryze.com/api` | API base |
+| `STACKRYZE_API_URL` | no | `https://api-dns.stackryze.com/api` | API base |
 | `STACKRYZE_EDGE_REGION` | no | `default` | Vantage-point label shown in the UI (e.g. `mumbai`) |
 | `STACKRYZE_EDGE_AGENT_ID` | no | `<region>-<hostname>` | Stable agent identifier |
 | `STACKRYZE_EDGE_INTERVAL` | no | `60` | Seconds between cycles (min 15) |
