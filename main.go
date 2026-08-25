@@ -48,7 +48,7 @@ func loadConfig() config {
 	}
 	resolvers := splitList(env("STACKRYZE_EDGE_RESOLVERS", "8.8.8.8,1.1.1.1,9.9.9.9"))
 	return config{
-		apiURL:      env("STACKRYZE_API_URL", "https://api.stackryze.com/api"),
+		apiURL:      env("STACKRYZE_API_URL", "https://api-dns.stackryze.com/api"),
 		token:       os.Getenv("STACKRYZE_API_TOKEN"),
 		region:      region,
 		agentID:     env("STACKRYZE_EDGE_AGENT_ID", region+"-"+host),

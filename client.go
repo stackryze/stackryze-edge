@@ -20,7 +20,7 @@ type stackryzeClient struct {
 
 func newClient(baseURL, token string) *stackryzeClient {
 	if baseURL == "" {
-		baseURL = "https://api.stackryze.com/api"
+		baseURL = "https://api-dns.stackryze.com/api"
 	}
 	return &stackryzeClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
