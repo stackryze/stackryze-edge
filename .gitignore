@@ -1,0 +1,7 @@
+stackryze-edge
+/sredge
+dist/
+*.exe
+*.test
+*.out
+.env
